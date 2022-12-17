@@ -5,7 +5,7 @@ site:
 content:
   branches:	[main]
   sources:
-    - url: https://github.com/stonefifteen/rest--SiteContentRoot.git
+    - url: https://github.com/stonefifteen/rest-SiteContentRoot.git
       start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-firmware.git
       start_path: docs
