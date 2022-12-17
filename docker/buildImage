@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker build --progress=plain -t amazonlinux:latest %* . > log 2>&1

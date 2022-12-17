@@ -1,0 +1,57 @@
+
+# Whether run in a local container, cloud compute instance, or remote Git service,
+# once the Git credentials and all required utilities are in place the Git
+# repository which contains the antora-playbook-xxx.yml files must be retrieved.
+#
+#	Input(s):
+#		repository-url										# The URL of the repository which contains the
+#																			#	antora-playbook.yml and the files/directories
+#																			#	that support running Antora.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+fetchGeneratorRepo ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify the URL of the repository containing the antora-playbook.yml file." >&2
+		return 1
+	fi
+
+	local repoDir=$(urlsToDirs ${1})													# Holds the directory of the cloned rrepository
+
+	# Test that the resulting string is not empty
+	if [[ -n "${repoDir}" ]]
+	then
+		# Now clone the repository 
+		if git clone ${1}
+		then
+			if cd ${repoDir} 
+			then
+
+				cp -r * ..
+
+				cd ..
+				
+				# Finished copying, so delete the cloned directory
+				if rm -rf ${repoDir}
+				then
+					return 0
+				fi
+			fi
+		fi
+	fi
+
+	return 1
+}

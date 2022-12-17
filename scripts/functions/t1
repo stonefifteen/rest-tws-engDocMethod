@@ -1,0 +1,11 @@
+t1 ()
+{
+    local zx
+    local len=4
+
+    for ((zx=0;zx<len;zx++))
+    do
+        echo $zx
+    done
+
+}

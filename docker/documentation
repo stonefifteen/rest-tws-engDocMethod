@@ -1,0 +1,57 @@
+#! /bin/bash
+
+#
+# These are the variables that control local and remote (git repo) locations
+#
+antoraSiteDir=/usr/share/nginx
+
+[[ -z ${REPO_URL} ]] && panic "The REPO_URL environment variable is not set - exiting."
+[[ -z ${GIT_TOKEN} ]] && panic "The GIT_TOKEN environment variable is not set - exiting."
+
+#
+# Insert the github credentials required from the environment, first
+# telling git - meaning that antora as well as the git command line
+# utilities will operate under this global constraint - that we are using
+# the standard persistent file store for credentials.
+#
+# Also note that the credential that is passed through the GIT_TOKEN
+# environment variable; this is the concatenation of our sdi org bot account
+# name, a colon, and the Personal Access Token (PAT) for the bot account,
+# NOT the actual password, which Github would rightfully reject anyway.
+#
+git config --global credential.helper store
+
+#
+# Now that git expects a credential in the store file, insert it from
+# the GIT_TOKEN environment variable.
+#
+cat <<EOF > ${HOME}/.git-credentials
+https://${GIT_TOKEN}@github.com
+EOF
+
+#
+# Create the antora site directory for building the new site,
+# grab our antora-playbook.yml file from the Architecture Infrastructure
+# git repo into the site dir, and then remove the .git contents as we
+# only created the .git directory temporarily in order to fetch the
+# playbook file.
+#
+set -x
+
+mkdir ${antoraSiteDir}
+cd ${antoraSiteDir}
+
+git init
+git fetch ${REPO_URL}
+git checkout FETCH_HEAD -- antora-playbook.yml supplemental-ui ui-bundle ui-bundle.zip
+rm -rf .git
+
+antora --fetch antora-playbook.yml
+
+mv html html.orig
+ln -s build/site html
+
+
+chmod -R 777 html
+
+nginx

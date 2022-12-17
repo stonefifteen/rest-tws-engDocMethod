@@ -1,0 +1,66 @@
+
+# Generates a "simple" web site via Antora. A simple site is one that does not
+#	attempt to track non-main branches in the underlying repositories, thereby
+#	allowing Antora to handle all Git interactions.
+#
+#	Each repository contributing content to the site *must* meet these criteria:
+#
+#	-	all contributing repositories use the same default branch.
+#
+#	- each repository has a docs/antora.yml file
+#
+#	- the antora.yml in each repository has its version: key set to the value of a tilde ( ~ )
+#
+#	-	the antora.playbook.yml file has its content/branches key set to [main] or
+#		whatever the default branch for the repositories is.
+#
+#	Input(s):
+#
+#		The relative or absolute file path of the Antora Playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the playbook file path has not been passed in,
+#						and any error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+generateAntoraDemoSite ()
+{
+	if [[ $# -lt 2 ]]
+	then
+		echo "You must specify the URL of the repository containing the Antora playbook file, and the name of the playbook file." >&2
+		return 1
+	fi
+
+	local generatorRepoUrl=${1}																									# Captures the URL of the generator repository
+	local playbookFile=${2}																					# The file name of the Antora playbook for a simple-type site
+
+	if ! isNodeVersionInstalled 16
+	then
+		if ! installNode
+		then
+			return 1
+		fi
+	fi
+
+	if ! isAntoraVersionInstalled 3
+	then
+		if ! installAntora
+		then
+			return 1
+		fi
+	fi
+
+
+	fetchGeneratorRepo ${generatorRepoUrl}
+
+	antora generate --log-failure-level warn --log-level all ${playbookFile}
+}

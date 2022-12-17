@@ -1,0 +1,36 @@
+
+# Changes the default web site directory to match
+#	/usr/share/nginx/build/site, and start the nginx service
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output from from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+launchNginx ()
+{
+	if mv /var/www/html /var/www/html.orig
+	then
+		if ln -s /usr/share/nginx/build/site /var/www/html
+		then
+			if nginx
+			then
+				return 0
+			fi
+		fi
+	fi
+
+	return 1
+}

@@ -1,0 +1,49 @@
+
+# Generates an array of directories from an array of URLs
+#
+#	Input(s):
+#		repository-url0 [... repository-urlN]		One or more repository URLs
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT: whitespace-separated list of directories that positionally
+#						correspond to the input URLs
+#
+#
+#	Testing status:
+#		UNTESTED
+
+urlsToDirs ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify at least one repository URL" >&2
+		return 1
+	fi
+
+	local dir																												# Captures the resulting directory string
+	local dirList																										# Capture the whitespace-separated list of directories
+
+	while [[ $# -gt 0 ]]
+	do
+		# Drop everything from the beginning or the URL up to 
+		# and included the last slash
+		dir=${1##*/}
+
+		# Drop the firsst dot and everything after it
+		dir=${dir%.*}
+
+		# The -n option is used in order to produce a single line of whitespace
+		# separated directory names, rather than a line for each directory
+		echo ${dir}
+
+		shift
+
+	done
+}

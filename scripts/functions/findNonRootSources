@@ -1,0 +1,34 @@
+
+
+#	Finds (echos) the URLs of the source content repositories from the specified
+#	Antora playbook file, that are *NOT* the root content source (see above).
+#
+#	Input(s):
+#
+# playbook														# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification if playbook path is not passed as input
+#
+#		STDOUT:	If found, one or more content source repository URLs
+#						separated by newlines.
+#
+#	Testing status:
+#		PASSED
+
+findNonRootSources ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify an Antora playbook file" >&2
+		return 1
+	fi
+
+	yq '.content.sources[] | select(.is_root != true).url' "${1}"
+}

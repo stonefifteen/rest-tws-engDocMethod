@@ -1,0 +1,66 @@
+
+# For the more complex site generation workflows, it may be desirable to bypass
+#	Antora's built-in processing of remote Git URLs, and instead clone those
+#	repositories directly. The direct retrieval of repositories is typically
+#	followed by some local manipulations, the re-writing of the antora-playbook.yml
+#	file to specify each repository under its content/sources/url in the playbook as
+#	a relative or absolute directory path (*WITHOUT* the file:// scheme). This function
+#	parses the playbook and for each repository, and then clones the repository.
+#
+#	The final result of the function is the creation of the local repositories, the echoing
+#	of the space-delimited string of all local repository directories, and a return status of 0.
+#
+#	Input(s):
+#
+#		playbook													#	The relative or absolute file path of the
+#																			#	antora-playbook.yml file.
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in,
+#						and any error output from any step
+#
+#		STDOUT:	List of cloned repositories, separated by whitespace, where the first repository
+#						is the root source content repository
+#
+#	Testing status:
+#		PASSED
+
+cloneRepositoriesFromPlaybook ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify the file name of Antora playbook to use." >&2
+		return 1
+	fi
+
+	local playbook="${1}"																						# The file name of the Antora playbook
+	local repositoryDirs																						# Will capture the whitespace-separated list of cloned directories
+	local repo																											#	Captures the current repository directory in the loop
+	local rootRepository=($(findRootSource ${playbook}))
+	local nonRootRepositories=($(findNonRootSources ${playbook}))
+
+	# Cannot proceed without the playbook file
+	if [[ ! -f "${playbook}" ]]
+	then
+		echo "The Antora playbook ${playbook} cannot be found" >&2
+		return 1
+	fi
+	for repo in ${rootRepository} ${nonRootRepositories[*]}
+	do
+		if git clone ${repo} 2>/dev/null >&2
+		then
+			repositoryDirs+="${repo} "
+		else
+			echo "Failed to clone repository ${repo}" >&2
+			return 1
+		fi
+	done
+
+	echo ${repositoryDirs}
+
+	return 0
+}

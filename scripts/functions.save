@@ -1,0 +1,952 @@
+#	Temporary for testing
+
+dvar ()
+{
+	local var
+	while [[ $# -gt 0 ]]
+	do
+		var=$1
+
+		eval "if [[ \${#${var}[@]} -gt 1 ]]
+		then IFS=,;echo \"${var}=[\${${var}[*]}]\" >&2; else echo \"${var}=\${${var}}\" >&2; fi"
+		shift
+	done
+
+	unset IFS
+}
+
+#	Convenience function for choosing a simple, complex, or no site
+#	ve generated.
+#
+#	Input(s):
+#
+#		repository-url										# The URL of the repository which contains the
+#																			#	antora-playbook.yml and the files/directories
+#																			#	that support running Antora.#
+#
+#		playbook													# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#	Returns:
+#		0																	# The entire process succeeded, meaning that a site type
+#																			#	was generated.
+#
+#		1																	#	Some step in the process failed, or no site generation was selected.
+#
+#	Echos:
+#		STDERR:	Error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+chooseSiteType ()
+{
+	if [[ $# -lt 3 ]]
+	then
+		cat <<EOF >&2
+You must specify the URL of the repository containing the Antora
+playbook files, the name of the simple site playbook file, and
+the name of the complex site playbook file.
+EOF
+		return 1
+	fi
+
+	local generatorRepositoryUrl=${1}																# The URL of the site generator Git repository
+	local simplePlaybookFile=${2}																		#	The filename of the simple-type Antora playbook
+	local complexPlaybookFile=${3}																	#	The filename of the complex-type Antora playbook
+
+	PS3="Choose site type to generate: "
+
+	select opt in Simple Complex None
+	do
+		echo "Selected ${opt}"
+
+		case ${opt} in
+		Simple)
+			echo "Generating a simple site"
+			generateSimpleSite ${generatorRepositoryUrl} ${simplePlaybookFile}
+			return $?
+			;;
+		Complex)
+			echo "Generate complex site"
+			generateComplexSite ${generatorRepositoryUrl} ${complexPlaybookFile} | tee log
+			return $?
+			;;
+		None)
+			echo "None"
+			return 1
+			;;
+		esac
+	done
+}
+
+#	Finds (echos) the URL of the source content repository from the specified
+#	Antora playbook file, which is the root content source (that which results
+#	in the top-most, initial content) in the site to be generated.
+#
+#	Input(s):
+#
+# playbook														# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification if playbook path is not passed as input
+#
+#		STDOUT:	If found, the URL of the root content source repository
+#
+#	Testing status:
+#		PASSED
+
+findRootSource ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify an Antora playbook file" >&2
+		return 1
+	fi
+
+	yq '.content.sources[] | select(.is_root).url' "${1}"
+}
+
+
+#	Finds (echos) the URLs of the source content repositories from the specified
+#	Antora playbook file, that are *NOT* the root content source (see above).
+#
+#	Input(s):
+#
+# playbook														# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification if playbook path is not passed as input
+#
+#		STDOUT:	If found, one or more content source repository URLs
+#						separated by newlines.
+#
+#	Testing status:
+#		PASSED
+
+findNonRootSources ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify an Antora playbook file" >&2
+		return 1
+	fi
+
+	yq '.content.sources[] | select(.is_root != true).url' "${1}"
+}
+
+# Insert the github credentials required from the environment, first
+# telling git - meaning that antora as well as the git command line
+# utilities will operate under this global constraint - that we are using
+# the standard persistent file store for credentials.
+#
+# Also note that the credential that is passed through the GIT_TOKEN
+# environment variable; this is the concatenation of our sdi org bot account
+# name, a colon, and the Personal Access Token (PAT) for the bot account,
+# NOT the actual password, which Github would rightfully reject anyway.
+#
+#	For the complex site generation scenario, commits are made to the local
+#	that nonetheless require user identification; placeholder valus are used.
+#
+#	Input(s):
+#
+#		github-user-token									# This is required for insertion into
+#																			#	the ${HOME}/.git-credentials file. The
+#																			#	token is formed by the concatenation
+#																			#	of <user-name>:<personal-access-token>
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification if token is not passed as input
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+setupGitCredentials ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify a GitHub user authentication token" >&2
+		return 1
+	fi
+
+	# Configure Git to use credentials for accessing any repository
+	# without prompting for input. Given that we're anticipating that
+	# the repositories that will be used are coming from GitHub, we
+	# we set the default branch to "main" to match GitHub, as opposed
+	# to the Git CLI default branch "master".
+
+	if git config --global init.defaultBranch main
+	then
+		if git config --global credential.helper store
+		then
+			git config --global user.name "Antora site generation"
+			if git config --global user.email "asg@null.org"
+			then
+				# Now that git expects a credential in the store file, insert it from
+				# the GIT_TOKEN environment variable.
+
+				cat <<EOF >${HOME}/.git-credentials
+https://${GIT_TOKEN}@github.com
+EOF
+
+				return 0
+			fi
+		fi
+	fi
+
+	return 1
+}
+
+#	It's best not to assume that the container's image - be it a local Docker
+#	image, a cloud-based instance, or the worker offered on a site such as GitHub -
+#	has all of the utilities needed at their required minimum versions.
+#
+#	This pattern uses the function name isXxxxVersionInstalled, with a return value
+#	of 0 if the required minimum version is found, or else 1 if not found.
+#
+#	Given the broad variety of version syntaxes across different utilities, the simplest
+#	and cleanest solution is to create an isXxxxVersionInstalled function for each utility.
+#
+#	Whatever the native version syntax for an utility is, a function supporting the
+# isXxxxVerionsInstalled pattern must internally evaluate that version as if it is
+#	in the semantic version form: [v...][1...].[0...].[0...] , i.e. Major.Minor.Micro
+#
+#	Input(s):
+#
+#		minimum-major-version							#	The lowest integer value of the major version
+#																			#	of Node.js that is acceptable.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+isNodeVersionInstalled ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify a terget version for rNode.js" >&2
+		return 1
+	fi
+
+	declare -l -i majorVersion=${1}																	# We will capture the major version in this Integer variable
+	local version																										# Captures the version string returned by Node.js
+
+	if version=$(node -v)
+	then
+		# Drop the leading "v"
+		version=${version:1}
+
+		# Drop the first dot and everything after it, so that
+		# all that remains is the reported major version
+		version=${version%%.*}
+
+		if [[ ${majorVersion} -le ${version} ]]
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}
+
+#	Check that the required minimum version of antora is installed, per
+#	the description of isNodeVersionInstalled above.
+#
+#	Input(s):
+#
+#		minimum-major-version							#	The lowest integer value of the major version
+#																			#	of Node.js that is acceptable.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+isAntoraVersionInstalled ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify a terget version for rNode.js" >&2
+		return 1
+	fi
+
+	declare -l -i majorVersion=${1}																	# We will capture the major version in this Integer variable
+	local version																										# Captures the version string returned by Node.js
+
+	if version=$(antora -v)
+	then
+
+		# Drop the leading "@antora/cli:" string
+		version=${version#@antora/cli: }
+
+		# Drop the first dot and everything after it, so that
+		# all that remains is the reported major version
+		version=${version%%.*}
+
+		if [[ ${majorVersion} -le ${version} ]]
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}
+
+# In keeping with the isXxxxVersionInstalled pattern described above,
+#	for each required utility that might not be pre-installed has its
+#	own installXxxx function. Successful installtion results in the function
+# returning 0, otherwise if any step fails then 1 is returned. This
+#	function is built for Linux variants that support apt package management.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+installNode ()
+{
+
+	# Download and execute this script which updates the apt
+	# repository references, so that we can use apt-get to 
+	# install the latest version of Node.js
+
+	if curl -sL https://deb.nodesource.com/setup_16.x | bash -
+	then
+		if apt-get install -y nodejs
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}
+
+# Install Antora, per the pattern described above.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+installAntora ()
+{
+	# antora uses npm as its package distribution channel, which
+	# therefore requires that Node.js is already installed.
+
+	node -e "fs.writeFileSync('package.json', '{}')"
+
+	if npm i -g -D -E @antora/cli@3.1 @antora/site-generator@3.1
+	then
+		if npm install asciidoctor-kroki
+		then
+			if ! npm install @antora/lunr-extension
+			then
+				return 0
+			fi
+		fi
+	fi
+
+	return 1
+}
+
+# Generates an array of directories from an array of URLs
+#
+#	Input(s):
+#		repository-url0 [... repository-urlN]		One or more repository URLs
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT: whitespace-separated list of directories that positionally
+#						correspond to the input URLs
+#
+#
+#	Testing status:
+#		UNTESTED
+
+urlsToDirs ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify at least one repository URL" >&2
+		return 1
+	fi
+
+	local dir																												# Captures the resulting directory string
+	local dirList																										# Capture the whitespace-separated list of directories
+
+	while [[ $# -gt 0 ]]
+	do
+		# Drop everything from the beginning or the URL up to 
+		# and included the last slash
+		dir=${1##*/}
+
+		# Drop the firsst dot and everything after it
+		dir=${dir%.*}
+
+		# The -n option is used in order to produce a single line of whitespace
+		# separated directory names, rather than a line for each directory
+		dirList+=" ${dir}"
+
+		shift
+
+		echo "${dirList:1}"
+
+	done
+
+}
+
+# Whether run in a local container, cloud compute instance, or remote Git service,
+# once the Git credentials and all required utilities are in place the Git
+# repository which contains the antora-playbook-xxx.yml files must be retrieved.
+#
+#	Input(s):
+#		repository-url										# The URL of the repository which contains the
+#																			#	antora-playbook.yml and the files/directories
+#																			#	that support running Antora.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+fetchGeneratorRepo ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify the URL of the repository containing the antora-playbook.yml file." >&2
+		return 1
+	fi
+
+	local repoDir=$(urlsToDirs ${REPO_URL})													# Holds the directory of the cloned rrepository
+
+	# Test that the resulting string is not empty
+	if [[ -n "${repoDir}" ]]
+	then
+		# Now clone the repository 
+		if git clone ${REPO_URL}
+		then
+			if cp -r ${repoDir}/* . 2>/dev/null 
+			then
+				
+				# Finished copying, so delete the cloned directory
+				if rm -rf ${repoDir}
+				then
+					return 0
+				fi
+			fi
+		fi
+	fi
+
+	return 1
+}
+
+# For the more complex site generation workflows, it may be desirable to bypass
+#	Antora's built-in processing of remote Git URLs, and instead clone those
+#	repositories directly. The direct retrieval of repositories is typically
+#	followed by some local manipulations, the re-writing of the antora-playbook.yml
+#	file to specify each repository under its content/sources/url in the playbook as
+#	a relative or absolute directory path (*WITHOUT* the file:// scheme). This function
+#	parses the playbook and for each repository, and then clones the repository.
+#
+#	The final result of the function is the creation of the local repositories, the echoing
+#	of the space-delimited string of all local repository directories, and a return status of 0.
+#
+#	Input(s):
+#
+#		playbook													#	The relative or absolute file path of the
+#																			#	antora-playbook.yml file.
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in,
+#						and any error output from any step
+#
+#		STDOUT:	List of cloned repositories, separated by whitespace, where the first repository
+#						is the root source content repository
+#
+#	Testing status:
+#		PASSED
+
+cloneRepositoriesFromPlaybook ()
+{
+
+	# Cannot proceed without the playbook file
+	if [[ ! -f "${playbook}" ]]
+	then
+		echo "The Antora playbook ${playbook} cannot be found" >&2
+		return 1
+	fi
+	local playbook="${1}"																						# The file name of the Antora playbook
+	local repositoryDirs																						# Will capture the whitespace-separated list of cloned directories
+	local repo																											#	Captures the current repository directory in the loop
+	local rootRepository=($(findRootSource ${playbook}))
+	local nonRootRepositories=($(findNonRootSources ${playbook}))
+
+	for repo in ${rootRepository} ${nonRootRepositories[*]}
+	do
+		if git clone ${repo} 2>/dev/null >&2
+		then
+			repositoryDirs+="${repo} "
+		else
+			echo "Failed to clone repository ${repo}" >&2
+			return 1
+		fi
+	done
+
+	echo ${repositoryDirs}
+
+	return 0
+}
+
+# Replaces the version key value with the specified branch
+#	name, and then commits this change locally to the branch
+#	bearing that name.
+#
+#	Input(s):
+#
+#		branch-name												#	The name of the branch to substitute into
+#																			#	antora.yml.
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the branch name has not been passed in,
+#						and any error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED UNFINISHED
+
+createAntoraYmlForVersionBranch ()
+{
+	if [[ $# -lt 2 ]]
+	then
+		echo "You must specify the default branch name and the version" >&2
+		return 1
+	fi
+
+	local status=0																									# Holds the return status
+	local defaultBranch=${1}
+	local branch=${2}
+	local version=${branch}
+
+	[[ "${branch}" = "main" ]] &&	version="~"
+
+	#	The first attempt to switch may fail, as the branch may only be "known"
+	#	remotely at this point, in which case attempt to create the branch locally
+	# and then switch to it.
+
+	if ! git switch ${branch}
+	then
+		if ! git switch -c ${branch}
+		then
+			# If we simply can't switch to the branch, then we cannot move forward,
+			# return error status
+			return 1
+		fi
+	fi
+
+	cat <<EOF >docs/antora.yml
+name: documentation
+version: ${version}
+title: Documentation
+asciidoc:
+  attributes:
+    source-language: asciidoc@
+    xrefstyle: short@
+    example-caption: false
+    listing-caption: Example@
+    version-node-major: '16'
+    version-node: '16.13.1'
+    version-npm: '8.2.0'
+    url-node-releases: https://nodejs.org/en/about/releases/
+    url-chat: https://antora.zulipchat.com
+    url-repo: https://gitlab.com/antora/antora
+    url-asciidoc: https://docs.asciidoctor.org/asciidoc/latest
+EOF
+
+	# Now that we've created the docs/antora.yml file in the current branch,
+	# stage it and then commit the change in Git
+
+	if git add docs/antora.yml
+	then
+		echo "Git added docs/antora.yml, branch ${branch}"
+		if ! git commit -m "Created antora.yml with version ${version}"
+		then
+			status=1
+		fi
+	else
+		echo "Failed to create antora.yml for branch ${branch}"
+		status=1
+	fi
+	
+	# Now switch back to the default branch, and the return status from 
+	# this function is the status of the git switch command
+
+	git switch ${defaultBranch}
+
+}
+
+# Changes the default web site directory to match
+#	/usr/share/nginx/build/site, and start the nginx service
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output from from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+launchNginx ()
+{
+	if mv /var/www/html /var/www/html.orig
+	then
+		if ln -s /usr/share/nginx/build/site /var/www/html
+		then
+			if nginx
+			then
+				return 0
+			fi
+		fi
+	fi
+
+	return 1
+}
+
+# Lists the *remote* branches, not including HEAD, for a repository.
+#	This function must be run from the local working tree of the intended
+#	repository.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output from from any step
+#
+#		STDOUT:	One or more branch names separated by newlines
+#
+#	Testing status:
+#		UNTESTED
+
+listBranchesForRepository ()
+{
+	git branch -a | sed -rn '
+/remotes\/origin\/HEAD/ {n}
+
+/^\s*remote/ {
+        s,^\s*remotes/origin/,,
+        p
+}
+'
+}
+
+# Generates a "simple" web site via Antora. A simple site is one that does not
+#	attempt to track non-main branches in the underlying repositories, thereby
+#	allowing Antora to handle all Git interactions.
+#
+#	Each repository contributing content to the site *must* meet these criteria:
+#
+#	-	all contributing repositories use the same default branch.
+#
+#	- each repository has a docs/antora.yml file
+#
+#	- the antora.yml in each repository has its version: key set to the value of a tilde ( ~ )
+#
+#	-	the antora.playbook.yml file has its content/branches key set to [main] or
+#		whatever the default branch for the repositories is.
+#
+#	Input(s):
+#
+#		The relative or absolute file path of the Antora Playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the playbook file path has not been passed in,
+#						and any error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+generateSimpleSite ()
+{
+	if [[ $# -lt 2 ]]
+	then
+		echo "You must specify the URL of the repository containing the Antora playbook file, and the name of the playbook file." >&2
+		return 1
+	fi
+
+	local url=${1}																									# Captures the URL of the generator repository
+	local playbookFile=${2}																					# The file name of the Antora playbook for a simple-type site
+
+	if ! isNodeVersionInstalled 16
+	then
+		if ! installNode
+		then
+			return 1
+		fi
+	fi
+
+	if ! isAntoraVersionInstalled 3
+	then
+		if ! installAntora
+		then
+			return 1
+		fi
+	fi
+
+
+	fetchGeneratorRepo ${url}
+
+	antora generate --log-failure-level warn --log-level all ${playbookFile}
+}
+
+# Generates a "complex" web site via Antora. A complex site is one that tracks
+#	both main/default and non-main branches in the underlying repositories, thereby
+#	having to bypass Antora's built-in handling of all Git interactions.
+#
+#	Each repository contributing content to the site *must* meet these criteria:
+#
+#	- *NO* repository will have a docs/antora.yml file; these are generated from this function.
+#
+#	Input(s):
+#
+#		The URL of the generator repository which contains the Antora playback file(s)
+#
+#		The relative or absolute file path of the Antora Playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#
+#		STDERR:	Notification that the playbook file path has not been passed in,
+#				and any error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+generateComplexSite ()
+{
+	if [[ $# -lt 2 ]]
+	then
+		echo "You must specify the URL of the repository containing the Antora playbook file, and the name of the playbook file." >&2
+		return 1
+	fi
+
+	local url=${1}																									# Captures the URL of the generator repository
+	local playbookFile=${2}																					# The file name of the Antora playbook for a complex-type site
+	local branchCollectionFile="/tmp/branches"
+	local repositoryUrls
+	local repositoryDirs
+	local url dir
+	local branchCollection
+	local repoBranches
+	local repoBranch
+	local version
+	local branchCollectionList
+	local comma
+	local globalBranch
+	local repoDir
+	local rootRepositoryUrl
+	local rootRepositoryDir
+
+	fetchGeneratorRepo ${url}
+	
+	repositoryUrls=($(cloneRepositoriesFromPlaybook ${playbookFile}))
+	rootRepositoryUrl=${repositoryUrls[0]}
+	unset repositoryUrls[0]
+
+	repositoryDirs=($(urlsToDirs ${repositoryUrls[*]}))
+	rootRepositoryDir=${repositoryDirs[0]}
+	unset repositoryDirs[0]
+	
+	if ! isNodeVersionInstalled 16
+	then
+		installNode
+	fi
+
+	if ! isAntoraVersionInstalled 3
+	then
+		installAntora
+	fi
+
+	for url in ${repositoryUrls[*]}
+	do
+		dir=$(urlsToDirs ${url})
+
+		cd ${dir}
+
+		repoBranches=($(listBranchesForRepository))
+
+		for repoBranch in ${repoBranches[*]}
+		do
+			echo ${repoBranch} >>${branchCollectionFile}
+
+			createAntoraYmlForVersionBranch main ${repoBranch}
+		done
+
+		cd ..
+
+		sed -ri "
+\,${url},	{s,${url},${dir},}
+" ${playbookFile}
+
+	done
+
+	branchCollection=($(sort -u ${branchCollectionFile}))
+
+	for globalBranch in ${branchCollection[*]}
+	do
+		branchCollectionList+="${comma}${globalBranch}"
+		comma=","
+	done
+
+	sed -ri "
+	/^\s+branches:/	{s/(^\s+branches:\s*).*$/\1[${branchCollectionList}]/}
+" ${playbookFile}
+
+	dir=$(urlsToDirs ${rootRepositoryUrl})
+
+	cd ${dir}
+
+	#
+	#	NOTE TO SELF: re-arrange logic to cycle through each global collected branch,
+	#	and within each iteration create the antora.yml and then append the nav references,
+	#	then finally git switch <default-branch> 
+	#	Remember thta nav content has to be appended to the antora.yml in each branch
+	#
+	#	Also be open to alternative workflows where:
+	#	a)	the root content repo only has the main branch
+	#	b)	the root content repo only has the branches declared for itself
+	#	c)	the root content repo has all of the branches to correspond with the global list of branches
+
+	git switch main
+
+	for globalBranch in ${branchCollection[*]}
+	do
+		createAntoraYmlForVersionBranch main ${globalBranch}
+	done
+
+	echo "nav:" >> docs/antora.yml
+
+	for repoDir in ${repositoryDirs[*]}
+	do
+		echo "  - modules/${repoDir}/nav.adoc" >> docs/antora.yml
+	done
+	
+	
+	git add docs/antora.yml
+	git commit -m "Added navs to main antora.yml"
+
+
+	cd ..
+
+	antora generate --log-failure-level warn --log-level all ${playbookFile}
+}

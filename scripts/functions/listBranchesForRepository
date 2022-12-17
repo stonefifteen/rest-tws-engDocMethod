@@ -1,0 +1,32 @@
+# Lists the *remote* branches, not including HEAD, for a repository.
+#	This function must be run from the local working tree of the intended
+#	repository.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output from from any step
+#
+#		STDOUT:	One or more branch names separated by newlines
+#
+#	Testing status:
+#		UNTESTED
+
+listBranchesForRepository ()
+{
+	git branch -a | sed -rn '
+/remotes\/origin\/HEAD/ {n}
+
+/^\s*remote/ {
+        s,^\s*remotes/origin/,,
+        p
+}
+'
+}

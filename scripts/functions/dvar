@@ -1,0 +1,16 @@
+#	Temporary for testing
+
+dvar ()
+{
+	local var
+	while [[ $# -gt 0 ]]
+	do
+		var=$1
+
+		eval "if [[ \${#${var}[@]} -gt 1 ]]
+		then IFS=,;echo \"${var}=[\${${var}[*]}]\" >&2; else echo \"${var}=\${${var}}\" >&2; fi"
+		shift
+	done
+
+	unset IFS
+}

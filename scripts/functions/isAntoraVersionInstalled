@@ -1,0 +1,51 @@
+
+#	Check that the required minimum version of antora is installed, per
+#	the description of isNodeVersionInstalled above.
+#
+#	Input(s):
+#
+#		minimum-major-version							#	The lowest integer value of the major version
+#																			#	of Node.js that is acceptable.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+isAntoraVersionInstalled ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		error You must specify a terget version for rNode.js
+		return 1
+	fi
+
+	declare -l -i majorVersion=${1}																	# We will capture the major version in this Integer variable
+	local version																										# Captures the version string returned by Node.js
+
+	if version=$(antora -v) 2> /dev/null			# Seeing an error message in GitHub actions or other logs about this is just confusing.
+	then
+
+		# Drop the leading "@antora/cli:" string
+		version=${version#@antora/cli: }
+
+		# Drop the first dot and everything after it, so that
+		# all that remains is the reported major version
+		version=${version%%.*}
+
+		if [[ ${majorVersion} -le ${version} ]]
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}

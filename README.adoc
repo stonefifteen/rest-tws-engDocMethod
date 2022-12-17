@@ -1,0 +1,3 @@
+= EngDocMethod Site Generator
+
+This is both the example of, and the actual implementation for the EngDocMethod documentation site. This repository consists of the GitHub Workflows, Antora metadata, and supporting scripts that are used to regenerate the documentation site which explains the EngDocMethod methodology.

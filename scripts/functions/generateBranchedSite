@@ -1,0 +1,165 @@
+
+# Generates a "Branched" web site via Antora. A complex site is one that tracks
+#	both main/default and non-main branches in the underlying repositories, thereby
+#	having to bypass Antora's built-in handling of all Git interactions.
+#
+#	Each repository contributing content to the site *must* meet these criteria:
+#
+#	- *NO* repository will have a docs/antora.yml file; these are generated from this function.
+#
+#	Input(s):
+#
+#		The URL of the generator repository which contains the Antora playback file(s)
+#
+#		The relative or absolute file path of the Antora Playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#
+#		STDERR:	Notification that the playbook file path has not been passed in,
+#				and any error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+generateBranchedSite ()
+{
+	if [[ $# -lt 2 ]]
+	then
+		echo "You must specify the URL of the repository containing the Antora playbook file, and the name of the playbook file." >&2
+		return 1
+	fi
+
+	local generatorRepoUrl=${1}																									# Captures the URL of the generator repository
+	local playbookFile=${2}																					# The file name of the Antora playbook for a complex-type site
+	local repositoryUrls
+	local repoUrl
+	local repositoryDirs
+	local repoDir
+	local repoBranches
+	local branchList
+	local repoBranch
+	local version
+	local comma
+	local globalBranch
+	local repoDir
+	local rootRepositoryUrl
+	local rootRepositoryDir
+	local len
+	local index
+
+	if ! isNodeVersionInstalled 16
+	then
+		if ! installNode
+		then
+			echo "Needed to install Node.js, but failed - cannot proceed." >&2
+			return 1
+		fi
+	fi
+
+	if ! isAntoraVersionInstalled 3
+	then
+		if ! installAntora
+		then
+			echo "Needed to install Antora, but failed - cannot proceed." >&2
+			return 1
+		fi
+	fi
+
+	echo "Playbook file is ${playbookFile}"
+
+	fetchGeneratorRepo ${generatorRepoUrl}
+	
+	repositoryUrls=($(cloneRepositoriesFromPlaybook ${playbookFile}))
+
+	
+	for ((index=0;index<len;index++))
+	do	
+		repoUrl=${repositoryUrls[${index}]}
+		repoDir=${repositoryDirs[${index}]}
+
+		
+	done
+
+	for repoUrl in ${repositoryUrls[*]}
+	do
+		repoDir=$(basename ${repoUrl})
+		repoDir=${repoDir%.git}
+
+		sed -ri "
+\,${repoUrl},	{s,${repoUrl},${repoDir},}
+" ${playbookFile}
+
+		cd ${repoDir}
+
+		echo "In repo ${repoDir}, for URL ${repoUrl}"
+		
+
+		repoBranches=($(listBranchesForRepository))
+
+		branchList="${repoBranches[*]}"
+		branchList=${branchList// /,}
+
+		echo "branchList=${branchList}"
+
+		for repoBranch in ${repoBranches[*]}
+		do
+			echo ${repoBranch} >>${branchCollectionFile}
+
+			createAntoraYmlForVersionBranch main ${repoBranch}
+		done
+
+		cd ..
+
+		sed -ri "
+/${repoDir}/ {
+        n
+        n
+        s/(^.*branches\s*:\s*\[).*(].*$)/\1${branchList}\2/
+}" ${playbookFile}
+
+	done
+
+	#
+	#	NOTE TO SELF: re-arrange logic to cycle through each global collected branch,
+	#	and within each iteration create the antora.yml and then append the nav references,
+	#	then finally git switch <default-branch> 
+	#	Remember thta nav content has to be appended to the antora.yml in each branch
+	#
+	#	Also be open to alternative workflows where:
+	#	a)	the root content repo only has the main branch
+	#	b)	the root content repo only has the branches declared for itself
+	#	c)	the root content repo has all of the branches to correspond with the global list of branches
+
+
+
+	# for globalBranch in ${branchCollection[*]}
+	# do
+	# 	createBranchedAntoraYmlForVersionBranch main ${globalBranch}
+
+	# 	git switch ${globalBranch} || git switch -c ${globalBranch}
+
+	# 	echo "nav:" >> docs/antora.yml
+
+	# 	for repoDir in ${repositoryDirs[*]}
+	# 	do
+	# 		echo "  - modules/${repoDir}/nav.adoc" >> docs/antora.yml
+
+	# 		git add docs/antora.yml
+	# 		git commit -m "Added navs to main antora.yml"
+
+	# 	done
+	# done
+	
+	
+
+	# cd ..
+
+	antora generate --log-failure-level warn --log-level all ${playbookFile}
+}

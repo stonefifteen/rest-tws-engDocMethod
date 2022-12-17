@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# This run script, in conjunction with the image's Dockerfile is designed for rapid
+# development, NOT for production use. As one of the important components that go
+# through rapid development iterations, the script used in the container to obtain
+# Antora, fetch Git repositories, and then execute Antora to build the documentation,
+# is deliberately kept out of the Dockerfile.
+
+#
+# Set the required environment variables
+#
+
+#
+#   GIT_TOKEN - this is must be set in the environment prior to running this script. It takes the
+#               for <GitHubUser>:<PersonalAccessToken>
+
+# These are required to be passed into the container
+#
+IMAGE=amazonlinux
+REPO_URL="https://github.com/M50505/engDocMethod.git"
+DOC_SCRIPT=/etc/init.d/documentation
+
+#IPRIV=--cap-add=NET_ADMIN
+PPRIV=--privileged
+#NET=--network host
+PORT_MAP=-p 80:80
+
+
+command="docker run --rm -it -v /local:/local ${IPRIV} ${PPRIV} ${NET} ${PMAP} --env PLAYBOOK_REPO_URL=${REPO_URL} --env GIT_TOKEN=${GIT_TOKEN} --env DOC_SCRIPT=${DOC_SCRIPT} amazonlinux"
+
+echo ${command}
+${command}

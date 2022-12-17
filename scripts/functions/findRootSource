@@ -1,0 +1,33 @@
+
+#	Finds (echos) the URL of the source content repository from the specified
+#	Antora playbook file, which is the root content source (that which results
+#	in the top-most, initial content) in the site to be generated.
+#
+#	Input(s):
+#
+# playbook														# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification if playbook path is not passed as input
+#
+#		STDOUT:	If found, the URL of the root content source repository
+#
+#	Testing status:
+#		PASSED
+
+findRootSource ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		echo "You must specify an Antora playbook file" >&2
+		return 1
+	fi
+
+	yq '.content.sources[] | select(.is_root).url' "${1}"
+}

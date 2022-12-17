@@ -1,0 +1,61 @@
+
+#	It's best not to assume that the container's image - be it a local Docker
+#	image, a cloud-based instance, or the worker offered on a site such as GitHub -
+#	has all of the utilities needed at their required minimum versions.
+#
+#	This pattern uses the function name isXxxxVersionInstalled, with a return value
+#	of 0 if the required minimum version is found, or else 1 if not found.
+#
+#	Given the broad variety of version syntaxes across different utilities, the simplest
+#	and cleanest solution is to create an isXxxxVersionInstalled function for each utility.
+#
+#	Whatever the native version syntax for an utility is, a function supporting the
+# isXxxxVerionsInstalled pattern must internally evaluate that version as if it is
+#	in the semantic version form: [v...][1...].[0...].[0...] , i.e. Major.Minor.Micro
+#
+#	Input(s):
+#
+#		minimum-major-version							#	The lowest integer value of the major version
+#																			#	of Node.js that is acceptable.
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Notification that the minimum version has not been passed in
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+isNodeVersionInstalled ()
+{
+	if [[ $# -lt 1 ]]
+	then
+		error You must specify a terget version for Node.js
+		return 1
+	fi
+
+	declare -l -i majorVersion=${1}																	# We will capture the major version in this Integer variable
+	local version																										# Captures the version string returned by Node.js
+
+	if version=$(node -v) 2> /dev/null		# Seeing an error message in GitHub actions or other logs about this is just confusing.
+	then
+		# Drop the leading "v"
+		version=${version:1}
+
+		# Drop the first dot and everything after it, so that
+		# all that remains is the reported major version
+		version=${version%%.*}
+
+		if [[ ${majorVersion} -le ${version} ]]
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}

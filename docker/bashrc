@@ -1,0 +1,50 @@
+#!/bin/bash
+# vim:tabstop=2:shiftwidth=2:nu:filetype=sh
+
+cat <<EOF
+Beginning run of .bashrc Version 1.1
+EOF
+
+# Please refer to the accompanying Dockerfile to see what will have already been installed.
+# Note that this is based on an AMI (Amazon Machine Image) from AWS's public container
+# registry; therefore the Dockerfile specifies a number of specialized additions such as
+# EPEL in addition to conventionally sourced packages such as Node.js .
+
+#
+# Without *both* of these environment variables set (as passed via the docker run command) we
+# cannot proceed.
+#
+if [[ -z ${REPO_URL} ]] 
+then
+  echo "The REPO_URL environment variable is not set - exiting." >&2
+  return 1
+fi
+
+if [[ -z ${GIT_TOKEN} ]]
+then
+  echo "The GIT_TOKEN environment variable is not set - exiting." >&2
+  return 1
+fi
+
+# For debugging convenience
+set -o vi
+
+#	Source the function files, to bring the Bash functions that
+# we'll need into our environment.
+
+
+for func in /scripts/functions/*
+do
+  . ${func}
+done
+
+cd /usr/share/nginx/
+
+setupGitCredentials ${GIT_TOKEN}
+
+if chooseSiteType
+then
+  launchNginx
+fi
+
+

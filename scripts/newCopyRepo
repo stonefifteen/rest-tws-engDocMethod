@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# vim:tabstop=2:shiftwidth=2:nu:filetype=sh
+#	
+
+
+for old in  *-Complex-*
+do
+	tag=${old#dochub-Complex-}
+	new="dochub-Branched-${tag}"
+	#gitCreateRepo ${new}
+	cp -r ${old} ${new}
+
+	mv ${new}/docs/modules/${old} ${new}/docs/modules/${new}
+
+done
+

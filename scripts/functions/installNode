@@ -1,0 +1,40 @@
+# In keeping with the isXxxxVersionInstalled pattern described above,
+#	for each required utility that might not be pre-installed has its
+#	own installXxxx function. Successful installtion results in the function
+# returning 0, otherwise if any step fails then 1 is returned. This
+#	function is built for Linux variants that support apt package management.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+installNode ()
+{
+
+	# Download and execute this script which updates the apt
+	# repository references, so that we can use apt-get to 
+	# install the latest version of Node.js
+
+	if curl -sL https://deb.nodesource.com/setup_16.x | bash -
+	then
+		if apt-get install -y nodejs
+		then
+			return 0
+		fi
+	fi
+
+	return 1
+}

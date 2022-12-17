@@ -1,0 +1,47 @@
+
+# Install Antora, per the pattern described above.
+#
+#	Input(s):
+#
+#		NONE
+#
+#	Returns:
+#		0																	# The entire process succeeded.
+#
+#		1																	#	Some step in the process failed.
+#
+#	Echos:
+#		STDERR:	Any error output of any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		PASSED
+
+installAntora ()
+{
+	# antora uses npm as its package distribution channel, which
+	# therefore requires that Node.js is already installed.
+
+	node -e "fs.writeFileSync('package.json', '{}')"
+
+	if npm i -g -D -E @antora/cli@3.1 @antora/site-generator@3.1
+	then
+		info Antora is now installed
+		if npm install asciidoctor-kroki
+		then
+			info Antora extension asciidoctor-kroki is now installed
+			if npm install @antora/lunr-extension
+			then
+				info Antora extension @antora/lunr-extension is now installed
+				return 0
+			else
+				error Failed to install Antora extension @antora/lunr-extension
+			fi
+		fi
+	else
+		error Failed to install Antora
+	fi
+
+	return 1
+}

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# vim:tabstop=2:shiftwidth=2:nu:filetype=sh
+#	
+# Author:              Martin Cribbins
+# Revision history:
+#
+# 2021-07-10 - Initial version.
+#	
+_doc ${1} 20210710125553 "creates a new GitHub Pages site associated with the specified repository." && exit 0
+
+repo=${1}
+# provider=$(gitGetProvider)
+provider="github.com"
+user=$(gitGetUser)
+token=$(gitGetToken)
+
+case ${provider} in
+	github.com)
+		result=$(curl -s -u ${user}:${token} --data "{\"name\":\"${repo}\",\"private\":\"true\",\"auto_init\":\"true\"}" https://api.github.com/user/repos)
+
+		successID=$(echo ${result} | jq ".id")
+
+		if [[ ${successID} = null ]]
+		then
+			cat>&2 <<EOF
+Failed to create remote repository ${repo} for user ${user} on ${provider}:
+$(echo ${result} | jq ".message,.errors[0].message" | tr -d \" | tr \\n ' ')
+EOF
+		else
+			echo "Remote repository ${repo} created for user ${user} on ${provider}, cloning new empty repository."
+			git clone git@github.com:${user}/${repo}.git
+
+			cd ${repo}
+
+			cat <<EOF > README.md
+= ${title}
+
+== Introduction
+
+
+EOF
+
+	mv README.md README.adoc
+
+	gitpub "Converted the README.md to an AsciiDoc file name README.adoc"
+
+
+		fi
+	;;
+esac
+

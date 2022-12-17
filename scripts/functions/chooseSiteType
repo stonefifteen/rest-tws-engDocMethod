@@ -1,0 +1,77 @@
+
+#	Convenience function for choosing a simple, complex, or no site
+#	ve generated.
+#
+#	Input(s):
+#
+#		repository-url										# The URL of the repository which contains the
+#																			#	antora-playbook.yml and the files/directories
+#																			#	that support running Antora.#
+#
+#		playbook													# The relative of absolute file path of
+#																			#	the Antora playbook file.
+#	Returns:
+#		0																	# The entire process succeeded, meaning that a site type
+#																			#	was generated.
+#
+#		1																	#	Some step in the process failed, or no site generation was selected.
+#
+#	Echos:
+#		STDERR:	Error output from any step
+#
+#		STDOUT:	NONE
+#
+#	Testing status:
+#		UNTESTED
+
+chooseSiteType ()
+{
+
+	local simplePlaybookFile="antora-playbook-simple.yml"										#	The filename of the simple-type Antora playbook
+	local mbPlaybookFile="antora-playbook-branched.yml"										#	The filename of the mb-type Antora playbook
+	local demoPlaybookFile="antora-playbook-demo.yml"											#	The filename of the mb-type Antora playbook
+
+	local simpleGeneratorRepositoryUrl=https://github.com/M50505/engDocMethod.git
+	local mbGeneratorRepositoryUrl=https://github.com/M50505/engDocMethod.git
+	local demoGeneratorRepositoryUrl=https://github.com/M50505/engDocMethod.git
+	
+	PS3="Choose site type to generate: "
+
+	# As indicated in the Antora documentation [and we have to infer some details from this],
+	# if Antora detects that a source repository is remote and private, then the "Edit this page"
+	# link will not be rendered for content from that repository. This environment variable being
+	# set to true will force the rendering of the edit link. To make use of the link, the user's
+	# browser should be holding the credentials for the user's login session on the repository
+	# site that serves the Asciidoc content, before clicking on the link.
+
+	# export FORCE_SHOW_EDIT_PAGE_LINK=true
+
+	select opt in Simple Multi-branch Demo None
+	do
+		echo "Selected ${opt}"
+
+		case ${opt} in
+		Simple)
+			echo "Generating a simple site"
+			fetchGeneratorRepo ${simpleGeneratorRepositoryUrl}
+
+			generateSimpleSite ${simplePlaybookFile}
+			return $?
+			;;
+		Multi-branch)
+			echo "Generate multi-branched site"
+			generateComplexSite ${mbGeneratorRepositoryUrl} ${mbPlaybookFile} | tee log
+			return $?
+			;;
+		Demo)
+			echo "Generate the Antora Demo site"
+			generateAntoraDemoSite ${demoGeneratorRepositoryUrl} ${demoPlaybookFile} | tee log
+			return $?
+			;;
+		None)
+			echo "None"
+			return 1
+			;;
+		esac
+	done
+}

@@ -1,0 +1,4 @@
+error ()
+{
+    echo "ERROR: $*" >&2
+}
