@@ -58,7 +58,7 @@ jobs:
             . ${func}
           done
 
-          generateSimpleSite antora-playbook-simple.yml
+          generateSimpleSite antora-playbook.yml
           touch build/site/.nojekyll
           mkdir -p build/site/plantuml/themes
           cp -r plantuml build/site
