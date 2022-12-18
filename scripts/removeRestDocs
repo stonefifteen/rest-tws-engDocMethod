@@ -1,0 +1,1 @@
+rm -rf $(find rest-* -type d -name docs)

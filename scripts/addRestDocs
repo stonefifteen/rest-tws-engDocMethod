@@ -1,0 +1,15 @@
+genM=${PWD}/engDocMethod/scripts/genDocsModule
+
+dvar genM
+
+
+cd rest-SiteContentRoot
+${genM} ROOT
+cd ..
+
+for i in rest-tws-firmware rest-tws-manufacturing rest-tws-marketing rest-tws-mechanical
+do
+    cd ${i}
+    ${genM} default
+    cd ..
+done
