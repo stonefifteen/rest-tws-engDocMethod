@@ -13,7 +13,7 @@ permissions:
 #
 # This workflow has only one job, and it uses three Actions:
 # - checkout@v2           is used to clone this enclosing repository
-#                         (sdi-one-architecture/documentation-infrastructure essentially
+#                         stonefifteen/rest-engDocMethod essentially
 #                         to retrieve the antora-playbook.yml file for Antora to use.
 #                         Moving to v3 of this action is planned; in the meantime version v2 is
 #                         still being used. 
