@@ -1,5 +1,5 @@
 site:
-  title: Stone Fifteen Design Group, Restaurnt Table Water System
+  title: Stone Fifteen Design Group, Bar and Restaurnt Table Water System
   
   
   start_page: documentation:ROOT:index.adoc
@@ -10,7 +10,7 @@ content:
       start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-firmware.git
       start_path: docs
-    - url: https://github.com/stonefifteen/rest-tws-manufacturing.git
+    # - url: https://github.com/stonefifteen/rest-tws-manufacturing.git
       start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-marketing.git
       start_path: docs
