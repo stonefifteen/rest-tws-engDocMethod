@@ -1,6 +1,5 @@
 site:
-  title: Stone Fifteen Design Group, Bar and Restaurnt Table Water System
-  
+  title: engDocMethod Example Engineering Documentation
   
   start_page: documentation:ROOT:index.adoc
 content:
