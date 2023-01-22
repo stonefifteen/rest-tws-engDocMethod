@@ -59,11 +59,13 @@ jobs:
           done
 
           fetchGeneratorRepo https://github.com/stonefifteen/rest-engDocMethod.git
-      
+                
           mkdir -p build/site
           touch build/site/.nojekyll
           mkdir -p build/site/plantuml/themes
           cp -r plantuml build/site
+
+          generateSimpleSite antora-playbook.yml
 
       - name: Configure Pages
         uses: actions/configure-pages@v2
