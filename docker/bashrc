@@ -42,9 +42,16 @@ cd /usr/share/nginx/
 
 setupGitCredentials ${GIT_TOKEN}
 
-if chooseSiteType
+if fetchGeneratorRepo ${REPO_URL}
 then
-  launchNginx
+  if generateSimpleSite antora-playbook.yml
+  then
+    launchNginx
+  else
+    error Failed to generate the Antora-based site
+  fi
+else
+  error Unable to retrieve the site generator repository
 fi
 
 

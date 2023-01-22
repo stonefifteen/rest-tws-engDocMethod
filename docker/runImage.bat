@@ -21,12 +21,12 @@ SET IMAGE=ubuntu-antora
 @REM This is actually the Git repository which houses this docker directory, as well
 @REM as the required antora-playbook.yml file and the supporting ui-bundle and supplemental-ui 
 @REM directories
-SET REPO_URL=https://github.com/M50505/engDocMethod.git
+SET REPO_URL=%1
 
 @REM We need to set the GitHub user credentials (<user-name>:<personal-access-token>)
 @REM in order to be able to fetch/checkout the required repositories from within the 
 @REM container.
-SET GIT_TOKEN=%1
+SET GIT_TOKEN=%2
 
 @REM Depending upon Heaven Knows What variations are in place in the Windows environment that
 @REM is running this .bat file, some permutation of these options are set for the docker run
