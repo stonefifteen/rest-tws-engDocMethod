@@ -65,6 +65,7 @@ jobs:
           mkdir -p build/site/plantuml/themes
           cp -r plantuml build/site
 
+
           generateSimpleSite antora-playbook.yml
 
       - name: Configure Pages
