@@ -60,7 +60,8 @@ jobs:
 
           fetchGeneratorRepo https://github.com/stonefifteen/rest-engDocMethod.git
       
-          # touch build/site/.nojekyll
+          mkdir -p build/site
+          touch build/site/.nojekyll
           mkdir -p build/site/plantuml/themes
           cp -r plantuml build/site
 
