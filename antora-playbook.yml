@@ -11,11 +11,13 @@ content:
       start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-requirements.git
       start_path: docs
+    - url: https://github.com/stonefifteen/rest-tws-mechanical.git
+      start_path: docs
+    - url: https://github.com/stonefifteen/rest-tws-electronics.git
+      start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-firmware.git
       start_path: docs
     - url: https://github.com/stonefifteen/rest-tws-manufacturing.git
-      start_path: docs
-    - url: https://github.com/stonefifteen/rest-tws-mechanical.git
       start_path: docs
 runtime:
   cache_dir: ./build/cache
