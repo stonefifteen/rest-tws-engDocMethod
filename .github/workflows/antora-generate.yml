@@ -58,8 +58,9 @@ jobs:
             . ${func}
           done
 
-          fetchGeneratorRepo https://github.com/stonefifteen/rest-engDocMethod.git
-                
+          # fetchGeneratorRepo https://github.com/stonefifteen/rest-engDocMethod.git
+          fetchGeneratorRepo ${{ github.repository }}
+
           mkdir -p build/site
           touch build/site/.nojekyll
           mkdir -p build/site/plantuml/themes
